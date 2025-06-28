@@ -11,7 +11,6 @@ cd scape-the-grid
 
 - **C++20 o superior**
 - **[SFML 3.0.0](https://github.com/SFML/SFML)** (instalación vía vcpkg recomendada)
-- **[CMake 3.20+](https://cmake.org/download/)**
 - Un compilador moderno (Visual Studio 2022, GCC 11+, Clang 12+)
 
 ## 📦 Instalación (Windows)
