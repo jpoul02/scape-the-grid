@@ -1,5 +1,12 @@
 # Escape the Grid - Ruinas Ancestrales (Versión SFML 3.0.0)
 
+## 📥 Clonar el Repositorio
+
+```bash
+git clone https://github.com/tu-usuario/scape-the-grid.git
+cd scape-the-grid
+```
+
 ## 🛠️ Requisitos
 
 - **C++20 o superior**
