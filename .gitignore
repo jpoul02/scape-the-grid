@@ -1,0 +1,18 @@
+# Archivos generados por Visual Studio
+.vs/
+*.user
+*.suo
+
+# Build outputs
+x64/
+*.obj
+*.exe
+*.pdb
+*.ilk
+*.log
+*.tlog
+*.dll
+
+# Otros temporales
+*.VC.opendb
+*.VC.db

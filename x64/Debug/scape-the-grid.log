@@ -1,0 +1,34 @@
+﻿  Game.cpp
+C:\dev\vcpkg\installed\x64-windows\include\SFML\System\Exception.hpp(41,47): warning C4275: se ha utilizado una interfaz no de DLL class 'std::runtime_error' como base para la interfaz DLL class 'sf::Exception'
+  (compilando archivo de origen "src/game/Game.cpp")
+      C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\include\stdexcept(100,30):
+      vea la declaración de 'std::runtime_error'
+      C:\dev\vcpkg\installed\x64-windows\include\SFML\System\Exception.hpp(41,23):
+      vea la declaración de 'sf::Exception'
+  
+  Player.cpp
+C:\dev\vcpkg\installed\x64-windows\include\SFML\System\Exception.hpp(41,47): warning C4275: se ha utilizado una interfaz no de DLL class 'std::runtime_error' como base para la interfaz DLL class 'sf::Exception'
+  (compilando archivo de origen "src/game/Player.cpp")
+      C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\include\stdexcept(100,30):
+      vea la declaración de 'std::runtime_error'
+      C:\dev\vcpkg\installed\x64-windows\include\SFML\System\Exception.hpp(41,23):
+      vea la declaración de 'sf::Exception'
+  
+  Grid.cpp
+C:\dev\vcpkg\installed\x64-windows\include\SFML\System\Exception.hpp(41,47): warning C4275: se ha utilizado una interfaz no de DLL class 'std::runtime_error' como base para la interfaz DLL class 'sf::Exception'
+  (compilando archivo de origen "src/grid/Grid.cpp")
+      C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\include\stdexcept(100,30):
+      vea la declaración de 'std::runtime_error'
+      C:\dev\vcpkg\installed\x64-windows\include\SFML\System\Exception.hpp(41,23):
+      vea la declaración de 'sf::Exception'
+  
+  main.cpp
+C:\dev\vcpkg\installed\x64-windows\include\SFML\System\Exception.hpp(41,47): warning C4275: se ha utilizado una interfaz no de DLL class 'std::runtime_error' como base para la interfaz DLL class 'sf::Exception'
+  (compilando archivo de origen "src/main.cpp")
+      C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\include\stdexcept(100,30):
+      vea la declaración de 'std::runtime_error'
+      C:\dev\vcpkg\installed\x64-windows\include\SFML\System\Exception.hpp(41,23):
+      vea la declaración de 'sf::Exception'
+  
+  Generando código...
+  scape-the-grid.vcxproj -> C:\Users\USER\OneDrive - UNIVERSIDAD CENTROAMERICANA JOSÉ SIMEÓN CAÑAS\Documentos\SIMU\scape-the-grid\scape-the-grid\x64\Debug\scape-the-grid.exe
