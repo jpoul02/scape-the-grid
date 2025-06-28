@@ -1,107 +1,94 @@
+# Escape the Grid - Ruinas Ancestrales (Versión SFML 3.0.0)
 
+## 🛠️ Requisitos
 
-# ———————————————————————————
-# 1. Configuración de compilador
-# ———————————————————————————
-CXX       := g++
-CXXFLAGS  := -std=c++17 -Wall -I$(SFML_INCLUDE) -I./src
+- **C++20 o superior**
+- **[SFML 3.0.0](https://github.com/SFML/SFML)** (instalación vía vcpkg recomendada)
+- **[CMake 3.20+](https://cmake.org/download/)**
+- Un compilador moderno (Visual Studio 2022, GCC 11+, Clang 12+)
 
-# ———————————————————————————
-# 2. Rutas de SFML (modifica si lo tienes en otro sitio)
-# ———————————————————————————
-SFML_HOME    ?= /usr
-SFML_INCLUDE := $(SFML_HOME)/include
-SFML_LIB     := $(SFML_HOME)/lib
+## 📦 Instalación (Windows)
 
-# ———————————————————————————
-# 3. Librerías a enlazar
-# ———————————————————————————
-LIBS := -L$(SFML_LIB) -lsfml-graphics -lsfml-window -lsfml-system
+Requiere [vcpkg](https://github.com/microsoft/vcpkg):
 
-# ———————————————————————————
-# 4. Fuentes y objetos
-# ———————————————————————————
-SRC := main.cpp \
-       src/game/Game.cpp \
-       src/game/Player.cpp \
-       src/grid/Grid.cpp
+```bash
+git clone https://github.com/Microsoft/vcpkg.git
+cd vcpkg
+./bootstrap-vcpkg.bat
+vcpkg integrate install
+vcpkg install sfml3:x64-windows
+```
 
-OBJ := $(SRC:.cpp=.o)
+Asegúrate de que vcpkg esté en el ```CMAKE_TOOLCHAIN_FILE``` de tu proyecto.
 
-# ———————————————————————————
-# 5. Ejecutable final
-# ———————————————————————————
-TARGET := escape-the-grid
+# 🧱 Estructura del Proyecto
 
-# ———————————————————————————
-# 6. Targets “virtuales”
-# ———————————————————————————
-.PHONY: all install-deps clean run help describe
+```plaintext
+scape-the-grid/
+├── assets/                    # Recursos (fuentes, etc.)
+│   └── OpenSans-Regular.ttf
+├── src/
+│   ├── game/                  # Lógica principal del juego (Game.hpp/cpp, Player.hpp/cpp)
+│   └── grid/                  # Manejo del grid y celdas (Grid.hpp/cpp)
+├── main.cpp                   # Punto de entrada del juego
+├── CMakeLists.txt             # Configuración de compilación
+├── README.md
+└── game.mk                    # Este archivo (documentación y setup)
+```
 
-# Target por defecto
-all: $(TARGET)
+# 🧩 Compilación y Ejecución
 
-# Enlaza objetos y genera el ejecutable
-$(TARGET): $(OBJ)
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBS)
+```bash
+mkdir build
+cd build
+cmake .. -DCMAKE_TOOLCHAIN_FILE=C:/ruta/a/vcpkg/scripts/buildsystems/vcpkg.cmake
+cmake --build . --config Debug
+./Debug/escape-the-grid.exe
+```
 
-# Regla genérica para compilar cada .cpp
-%.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+Ajusta vcpkg.cmake según tu sistema. En Linux o MacOS, el ejecutable estará en ./escape-the-grid.
 
-# ———————————————————————————
-# Instalación automática de dependencias
-# (Linux / macOS / Windows instrucciones)
-# ———————————————————————————
-install-deps:
-	@echo "Instalando SFML y dependencias..."
-	@UNAME_S=$$(uname -s); \
-	if [ "$$UNAME_S" = "Linux" ]; then \
-	  sudo apt-get update && sudo apt-get install -y libsfml-dev; \
-	elif [ "$$UNAME_S" = "Darwin" ]; then \
-	  brew update && brew install sfml; \
-	else \
-	  echo "Windows: clona vcpkg y ejecuta:"; \
-	  echo "  git clone https://github.com/microsoft/vcpkg.git"; \
-	  echo "  ./vcpkg/bootstrap-vcpkg.sh"; \
-	  echo "  ./vcpkg/vcpkg install sfml:x64-windows"; \
-	fi
+# 🕹️ Controles y Jugabilidad
+-El juego se controla con el mouse: haz clic en una celda adyacente para moverte o interactuar.
+-Cada clic (mover, recoger, soltar) cuenta como 1 turno.
+-El objetivo es llegar a la meta verde, superando trampas, puertas y muros temporales.
 
-# ———————————————————————————
-# Limpieza de binarios y objetos
-# ———————————————————————————
-clean:
-	rm -f $(OBJ) $(TARGET)
+# 🎨 Leyenda de Colores
 
-# ———————————————————————————
-# Ejecutar el juego
-# ———————————————————————————
-run: $(TARGET)
-	@echo "Ejecutando $(TARGET)..."
-	@./$(TARGET)
+| Color           | Tipo de Celda                        |
+| --------------- | ------------------------------------ |
+| Gris claro      | Celda vacía (transitable)            |
+| Gris oscuro     | Muro (intransitable)                 |
+| Azul            | Tu avatar al inicio                  |
+| Verde           | Meta (puedes ganar si llegás)        |
+| Rojo claro      | Trampa (te devuelve al inicio)       |
+| Café claro      | Caja (objeto pesado)                 |
+| Teal oscuro     | Placa de presión (apagada)           |
+| Cian            | Placa activada                       |
+| Rojo oscuro     | Puerta cerrada (requiere caja)       |
+| Marrón claro    | Puerta abierta (puedes pasar)        |
+| Amarillo vivo   | Muro temporal activo                 |
+| Amarillo oscuro | Muro temporal desactivado            |
 
-# ———————————————————————————
-# Ayuda rápida
-# ———————————————————————————
-help:
-	@echo "Uso:"; \
-	echo "  make           — Compila el proyecto"; \
-	echo "  make install-deps  — Instala SFML (Linux/macOS) o muestra instrucciones para Windows"; \
-	echo "  make run       — Ejecuta el juego"; \
-	echo "  make clean     — Elimina ejecutable y .o"; \
-	echo "  make describe  — Resumen de mecánicas y controles"
+# ✅ ¿Cómo se gana?
 
-# ———————————————————————————
-# Descripción de jugabilidad y mecánicas
-# ———————————————————————————
-describe:
-	@printf "\nEscape the Grid – Puzzle game\n\n"; \
-	printf "Controles: clic izquierdo en celda adyacente para mover o interactuar.\n"; \
-	printf "Mecánicas:\n"; \
-	printf "  • Caja (marrón): recógela para ‘tener la llave’ (avatar VERDE).\n"; \
-	printf "  • Puertas cerradas (rojo oscuro) → al avanzar con caja, se abren.\n"; \
-	printf "  • Trampas (rojo claro): si pisas, vuelves al inicio.\n"; \
-	printf "  • Switch walls (amarillo): alternan cada 5 turnos (consulta consola).\n"; \
-	printf "  • Pressure plates (teal → cian): al dejar caja, abren puertas ligadas.\n"; \
-	printf "  • Meta (verde): se mueve cada 10 turnos. ¡Llega antes para ganar!\n\n"; \
-	printf "Cada movimiento o interacción suma 1 turno e imprime el contador en consola.\n\n"
+Explora el laberinto:
+    -Mueve tu avatar (azul) por las celdas grises claras evitando trampas.
+
+Busca la caja (café claro):
+    -Haz clic en ella (desde una celda adyacente) para recogerla.
+    -El avatar se vuelve verde: significa que llevás la “llave”.
+
+Dirígete a la puerta roja:
+    -Con la caja en mano, al hacer clic sobre la puerta cerrada, se abrirá.
+
+Evita trampas (rojo claro):
+    -Si las pisás, regresarás al punto de partida.
+
+Gestioná los muros temporales (amarillos):
+    -Cambian cada 5 turnos entre bloqueado y transitable.
+    -Usá el contador en consola para planear cuándo cruzar.
+
+Llega a la meta (verde):
+    -La meta se mueve cada 10 turnos.
+    -Ganás si la pisás justo antes de que desaparezca (turno 10, 20, 30, etc.).
