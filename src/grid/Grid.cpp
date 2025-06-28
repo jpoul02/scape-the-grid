@@ -1,19 +1,34 @@
 #include "Grid.hpp"
 
-Grid::Grid(unsigned int rows, unsigned int cols, float cellSize) {
-    for (unsigned int r = 0; r < rows; ++r) {
-        for (unsigned int c = 0; c < cols; ++c) {
-            sf::RectangleShape cell(sf::Vector2f(cellSize - 1, cellSize - 1));
-            cell.setPosition(sf::Vector2f(c * cellSize, r * cellSize)); // Fix: Use sf::Vector2f constructor
-            cell.setFillColor(sf::Color::Black);
-            cell.setOutlineThickness(1);
-            cell.setOutlineColor(sf::Color::White);
-            cells.push_back(cell);
-        }
+Grid::Grid(int rows, int cols, float cellSize)
+    : rows(rows), cols(cols), cellSize(cellSize), cells(rows, std::vector<CellType>(cols, CellType::Empty)) {
+}
+
+void Grid::draw(sf::RenderWindow& window) const {  
+    sf::RectangleShape shape(sf::Vector2f(cellSize, cellSize));  
+    for (int r = 0; r < rows; ++r) {  
+        for (int c = 0; c < cols; ++c) {  
+            shape.setPosition(sf::Vector2f(c * cellSize, r * cellSize)); 
+            switch (cells[r][c]) {  
+            case CellType::Empty: shape.setFillColor(sf::Color(50, 50, 50)); break;  
+            case CellType::Wall: shape.setFillColor(sf::Color(100, 100, 100)); break;  
+            }  
+            window.draw(shape);  
+        }  
+    }  
+}
+
+CellType Grid::getCell(int row, int col) const {
+    if (!isInside(row, col)) return CellType::Wall;
+    return cells[row][col];
+}
+
+void Grid::setCell(int row, int col, CellType type) {
+    if (isInside(row, col)) {
+        cells[row][col] = type;
     }
 }
 
-void Grid::draw(sf::RenderWindow& window) const {
-    for (const auto& cell : cells)
-        window.draw(cell);
+bool Grid::isInside(int row, int col) const {
+    return row >= 0 && col >= 0 && row < rows && col < cols;
 }

@@ -7,6 +7,11 @@ Game::Game()
 {
     sf::VideoMode mode(sf::Vector2u(600, 600), 32);
     window.create(mode, "Escape the Grid");
+
+    for (int i = 0; i < 10; ++i) {
+        grid.setCell(5, i, CellType::Wall);  // Fila 5 con paredes
+        grid.setCell(i, 3, CellType::Wall);  // Columna 3 con paredes
+    }
 }
 
 void Game::run() {
@@ -28,10 +33,10 @@ void Game::processEvents() {
             const auto* keyEvent = ev->getIf<sf::Event::KeyPressed>();
             if (keyEvent) {
                 switch (keyEvent->scancode) {
-                case sf::Keyboard::Scan::W: player.move(0, -1, 60.f); break;
-                case sf::Keyboard::Scan::S: player.move(0, 1, 60.f); break;
-                case sf::Keyboard::Scan::A: player.move(-1, 0, 60.f); break;
-                case sf::Keyboard::Scan::D: player.move(1, 0, 60.f); break;
+                case sf::Keyboard::Scan::W: player.move(0, -1, 60.f, grid); break;
+                case sf::Keyboard::Scan::S: player.move(0, 1, 60.f, grid); break;
+                case sf::Keyboard::Scan::A: player.move(-1, 0, 60.f, grid); break;
+                case sf::Keyboard::Scan::D: player.move(1, 0, 60.f, grid); break;
                 default: break;
                 }
             }
