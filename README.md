@@ -1,10 +1,16 @@
 # Escape the Grid
 
-**Escape the Grid** es un juego desarrollado en C++ usando SFML 3.0.0, orientado a la simulación y exploración de conceptos de lógica de juego sobre una cuadrícula.
+## 📥 Clonar el Repositorio
+
+```bash
+git clone https://github.com/jpoul02/scape-the-grid.git
+cd scape-the-grid
+```
+
+## 🛠️ Requisitos
 
 ## Requisitos
 
-- CMake 3.20 o superior
 - SFML 3.0.0 (instalado vía vcpkg)
 - Visual Studio 2022 (o cualquier compilador C++ compatible con C++17)
 - vcpkg integrado con Visual Studio: `.cpkg integrate install`
