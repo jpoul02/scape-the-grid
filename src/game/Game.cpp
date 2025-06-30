@@ -23,6 +23,7 @@ Game::Game()
     : window()
     , grid(21, 21, 32.f)
     , player(sf::Color::Blue, 1, 1, 32.f)
+    , rng{ std::random_device{}() }
 {
     unsigned int w = static_cast<unsigned int>(grid.getCols() * grid.getCellSize());
     unsigned int h = static_cast<unsigned int>(grid.getRows() * grid.getCellSize());
@@ -175,16 +176,22 @@ void Game::next_turn() {
     ++turnCounter;
     std::cout << "Turno: " << turnCounter << std::endl;
 
+    // Siempre alternamos los muros, tanto en manual como en automático:
     if (turnCounter % SWITCH_WALL_INTERVAL == 0) {
         grid.toggle_switch_walls();
         std::cout << "→ Switch walls toggled\n";
     }
-    if (turnCounter % GOAL_MOVE_INTERVAL == 0) {
-        std::mt19937 rng{ std::random_device{}() };
+
+    // Sólo movemos la meta si NO estamos auto-resolviendo
+    if (!autoSolve && turnCounter % GOAL_MOVE_INTERVAL == 0) {
         grid.move_goal(rng);
         std::cout << "→ Goal moved\n";
     }
 }
+
+
+
+
 
 std::vector<sf::Vector2i> Game::findFullPath(
     const sf::Vector2i& start,
@@ -230,12 +237,13 @@ std::vector<sf::Vector2i> Game::findFullPath(
             CellType t = grid.get_cell(np.y, np.x);
             bool pass =
                 t == CellType::Empty ||
+                (t == CellType::Box && !carry) ||
                 t == CellType::Plate ||
                 t == CellType::PlateOn ||
                 t == CellType::Goal ||
                 t == CellType::DoorOpen ||
                 (t == CellType::DoorClosed && carry) ||
-                (t == CellType::Switch && !grid.are_switches_active());
+                t == CellType::Switch;
             if (!pass) continue;
 
             State nxt{ np, carry };
@@ -250,32 +258,36 @@ std::vector<sf::Vector2i> Game::findFullPath(
     return {}; 
 }
 
-
-
 void Game::solveGame() {
-    solution.clear();
-    solveIndex = 0;
+    sf::Vector2i start{ player.get_col(), player.get_row() };
+    sf::Vector2i goal = grid.get_goal_pos();
 
-    sf::Vector2i p{ player.get_col(), player.get_row() };
+    auto direct = findFullPath(start, goal);
+    if (!direct.empty()) {
+        solution = direct;
+    }
+    else {
+        sf::Vector2i boxPos{ -1,-1 };
+        for (int r = 0; r < grid.getRows(); ++r)
+            for (int c = 0; c < grid.getCols(); ++c)
+                if (grid.get_cell(r, c) == CellType::Box)
+                    boxPos = { c, r };
 
-    sf::Vector2i boxPos{ -1,-1 };
+        auto toBox = findFullPath(start, boxPos);
 
-    for (int r = 0; r < grid.getRows(); ++r)
-        for (int c = 0; c < grid.getCols(); ++c)
-            if (grid.get_cell(r, c) == CellType::Box)
-                boxPos = { c,r };
+        std::vector<sf::Vector2i> pickup{ {-1,-1} };
 
-    solution = findFullPath(
-        { player.get_col(), player.get_row() },
-        grid.get_goal_pos()
-    );
+        auto boxToGoal = findFullPath(boxPos, goal);
+
+        solution.clear();
+        solution.insert(solution.end(), toBox.begin(), toBox.end());
+        solution.insert(solution.end(), pickup.begin(), pickup.end());
+        solution.insert(solution.end(), boxToGoal.begin(), boxToGoal.end());
+    }
+
     autoSolve = true;
     solveIndex = 0;
-
-
     std::cout << "Solver: hallados " << solution.size() << " pasos.\n";
-
-    autoSolve = true;
 }
 
 
