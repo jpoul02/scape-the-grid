@@ -53,6 +53,7 @@ public:
     void set_goal_pos(const sf::Vector2i& pos);
     void link_plate_to_door(const sf::Vector2i& platePos, const sf::Vector2i& doorPos);
     bool are_switches_active() const;
+    sf::Vector2i get_goal_pos() const;
 
 private:
     int rows, cols;
