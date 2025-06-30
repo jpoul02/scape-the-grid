@@ -27,11 +27,13 @@ struct Vector2iCompare {
 };
 
 class Grid {
+    std::map<CellType, sf::Sprite>  sprites;
+
 public:
     Grid(int rows, int cols, float cellSize);
 
     // Dibujo
-    void draw(sf::RenderWindow& window) const;
+    void draw(sf::RenderWindow& window, const std::map<CellType, sf::Texture>& textures);
 
     // Acceso
     int  getRows() const;

@@ -6,12 +6,26 @@
 #include "../grid/Grid.hpp"
 #include "Player.hpp"
 
+enum class GameState {
+    StartScreen,
+    Playing
+};
+
+
 class Game {
+    std::map<CellType, sf::Texture> textures;
+    GameState state = GameState::StartScreen;
+
+
 public:
     Game();
     void run();
+    void load_textures();
 
 private:
+    sf::RectangleShape startButton;
+    std::optional<sf::Text> startText;
+
     // --- Miembros del juego ---
     sf::RenderWindow    window;
     Grid                grid;
@@ -19,6 +33,7 @@ private:
     sf::Font            font;
     std::optional<sf::Text> goalText;
     bool                showGoalMessage = false;
+
 
     // --- Lógica de Turnos (NUEVO) ---
     int turnCounter = 0;

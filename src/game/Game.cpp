@@ -22,7 +22,12 @@ struct State {
 Game::Game()
     : window()
     , grid(21, 21, 32.f)
-    , player(sf::Color::Blue, 1, 1, 32.f)
+    , player(
+        "assets/player_idle_0.png",
+        "assets/player_idle_1.png",
+        "assets/player_carry_0.png",
+        "assets/player_carry_1.png",
+        1, 1, 32.f)
     , rng{ std::random_device{}() }
 {
     unsigned int w = static_cast<unsigned int>(grid.getCols() * grid.getCellSize());
@@ -37,6 +42,8 @@ Game::Game()
     if (!font.openFromFile("assets/OpenSans-Regular.ttf")) {
         std::cerr << "Error: No se pudo cargar la fuente 'assets/OpenSans-Regular.ttf'.\n";
     }
+
+    load_textures();
 
     solveText.emplace(font, "Resolver", 16u);
     solveText->setFillColor(sf::Color::White);
@@ -58,7 +65,6 @@ Game::Game()
     solveButton.setSize({ 100.f, 30.f });
     solveButton.setFillColor({ 50,50,50 });
     solveButton.setPosition(sf::Vector2f(10.f, 10.f));
-
 
 }
 
@@ -108,7 +114,7 @@ void Game::run() {
             if (didMove) {
                 ++solveIndex;      
                 next_turn();       
-                sf::sleep(sf::milliseconds(10));
+                sf::sleep(sf::milliseconds(100));
             }
         }
 
@@ -117,8 +123,6 @@ void Game::run() {
         render();
     }
 }
-
-
 
 
 void Game::processEvents() {
@@ -336,7 +340,7 @@ void Game::solveGame() {
 
 void Game::render() {
     window.clear({ 30,30,40 });
-    grid.draw(window);
+    grid.draw(window, textures);
     player.draw(window);
     if (showGoalMessage && goalText) {
         window.draw(*goalText);
@@ -346,4 +350,26 @@ void Game::render() {
         window.draw(*solveText);  
     }
     window.display();
+}
+
+void Game::load_textures() {
+    auto load = [&](CellType type, const std::string& path) {
+        sf::Texture tex;
+        if (!tex.loadFromFile(path)) {
+            std::cerr << "No se pudo cargar la textura: " << path << std::endl;
+            return;
+        }
+        textures[type] = std::move(tex);
+    };
+
+    load(CellType::Empty, "assets/floor.png");
+    load(CellType::Wall, "assets/wall.png");
+    load(CellType::Goal, "assets/goal.png");
+    load(CellType::Box, "assets/box.png");
+    load(CellType::Trap, "assets/trap.png");
+    load(CellType::Plate, "assets/plate.png");
+    load(CellType::PlateOn, "assets/plate_on.png");
+    load(CellType::DoorClosed, "assets/door_closed.png");
+    load(CellType::DoorOpen, "assets/door_open.png");
+    load(CellType::Switch, "assets/switch.png");
 }

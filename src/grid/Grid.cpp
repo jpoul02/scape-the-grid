@@ -22,31 +22,35 @@ void Grid::set_cell(int r, int c, CellType t) {
     if (is_inside(r, c)) cells[r][c] = t;
 }
 
-void Grid::draw(sf::RenderWindow& w) const {
-    sf::RectangleShape shape({ cellSize - 1.f,cellSize - 1.f });
-    for (int r = 0; r < rows; ++r) for (int c = 0; c < cols; ++c) {
-        // --- DESPUÉS ---
-        shape.setPosition({ c * cellSize + 1.f,
-                            r * cellSize + 1.f });
+void Grid::draw(sf::RenderWindow& w, const std::map<CellType, sf::Texture>& textures) {
+    for (int r = 0; r < rows; ++r) {
+        for (int c = 0; c < cols; ++c) {
+            CellType type = cells[r][c];
+            auto it = textures.find(type);
 
-        switch (cells[r][c]) {
-        case CellType::Empty:   shape.setFillColor({ 200,200,200 }); break;
-        case CellType::Wall:    shape.setFillColor({ 100,100,100 }); break;
-        case CellType::Goal:    shape.setFillColor(sf::Color::Green); break;
-        case CellType::Trap:    shape.setFillColor({ 255,100,100 }); break;
-        case CellType::Box:     shape.setFillColor({ 139,69,19 }); break;
-        case CellType::Plate:   shape.setFillColor({ 0,100,100 }); break;
-        case CellType::PlateOn: shape.setFillColor(sf::Color::Cyan); break;
-        case CellType::DoorClosed: shape.setFillColor({ 128,0,0 }); break;
-        case CellType::DoorOpen:   shape.setFillColor({ 120,80,40 }); break;
-        case CellType::Switch:
-            shape.setFillColor(switch_walls_active
-                ? sf::Color::Yellow
-                : sf::Color(100, 100, 0));
-            break;
-        default: shape.setFillColor(sf::Color::Magenta); break;
+            if (it != textures.end()) {
+                sf::Sprite sprite(it->second);
+
+                sprite.setTexture(it->second);
+
+                // Escalado correcto usando Vector2f
+                float texW = static_cast<float>(it->second.getSize().x);
+                float texH = static_cast<float>(it->second.getSize().y);
+                sprite.setScale(sf::Vector2f(cellSize / texW, cellSize / texH));
+
+                // Posición correcta usando Vector2f
+                sprite.setPosition(sf::Vector2f(c * cellSize, r * cellSize));
+
+                w.draw(sprite);
+            }
+            else {
+                // fallback si no hay textura
+                sf::RectangleShape shape({ cellSize - 1.f, cellSize - 1.f });
+                shape.setPosition({ c * cellSize + 1.f, r * cellSize + 1.f });
+                shape.setFillColor(sf::Color::Magenta);
+                w.draw(shape);
+            }
         }
-        w.draw(shape);
     }
 }
 
@@ -67,25 +71,65 @@ void Grid::generate_maze_dfs(int sr, int sc) {
     dfs(dfs, sr, sc);
 }
 
+//bool Grid::has_path(int sr, int sc, int tr, int tc) const {
+//    if (!is_inside(sr, sc) || !is_inside(tr, tc)) return false;
+//    std::vector vis(rows, std::vector<bool>(cols, false));
+//    std::queue<std::pair<int, int>> q;
+//    q.push({ sr,sc }); vis[sr][sc] = true;
+//    int dr[4] = { 1,-1,0,0 }, dc[4] = { 0,0,1,-1 };
+//    while (!q.empty()) {
+//        auto [r, c] = q.front(); q.pop();
+//        if (r == tr && c == tc) return true;
+//        for (int i = 0; i < 4; ++i) {
+//            int nr = r + dr[i], nc = c + dc[i];
+//            if (is_inside(nr, nc) && !vis[nr][nc] && get_cell(nr, nc) != CellType::Wall) {
+//                vis[nr][nc] = true;
+//                q.push({ nr,nc });
+//            }
+//        }
+//    }
+//    return false;
+//}
+
 bool Grid::has_path(int sr, int sc, int tr, int tc) const {
     if (!is_inside(sr, sc) || !is_inside(tr, tc)) return false;
-    std::vector vis(rows, std::vector<bool>(cols, false));
+
+    std::vector<std::vector<bool>> vis(rows, std::vector<bool>(cols, false));
     std::queue<std::pair<int, int>> q;
-    q.push({ sr,sc }); vis[sr][sc] = true;
-    int dr[4] = { 1,-1,0,0 }, dc[4] = { 0,0,1,-1 };
+    q.push({ sr, sc });
+    vis[sr][sc] = true;
+
+    int dr[4] = { 1, -1, 0, 0 };
+    int dc[4] = { 0, 0, 1, -1 };
+
     while (!q.empty()) {
         auto [r, c] = q.front(); q.pop();
         if (r == tr && c == tc) return true;
+
         for (int i = 0; i < 4; ++i) {
-            int nr = r + dr[i], nc = c + dc[i];
-            if (is_inside(nr, nc) && !vis[nr][nc] && get_cell(nr, nc) != CellType::Wall) {
+            int nr = r + dr[i];
+            int nc = c + dc[i];
+
+            if (!is_inside(nr, nc) || vis[nr][nc]) continue;
+
+            CellType t = get_cell(nr, nc);
+            bool passable =
+                t == CellType::Empty ||
+                t == CellType::Goal ||
+                t == CellType::Plate ||
+                t == CellType::PlateOn ||
+                t == CellType::DoorOpen;
+
+            if (passable) {
                 vis[nr][nc] = true;
-                q.push({ nr,nc });
+                q.push({ nr, nc });
             }
         }
     }
+
     return false;
 }
+
 
 sf::Vector2i Grid::find_empty_cell(std::mt19937& rng, sf::Vector2i exclude) {
     std::uniform_int_distribution<int> dr(1, rows - 2), dc(1, cols - 2);

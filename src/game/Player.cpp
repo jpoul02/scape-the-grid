@@ -1,32 +1,39 @@
 #include "Player.hpp"
 #include "../grid/Grid.hpp"
+#include <iostream>
 
-Player::Player(const sf::Color& color, int r, int c, float cellSize)
-    : row(r), col(c)
-    , startRow(r), startCol(c)
-    , step(cellSize)
+Player::Player(const std::string& idle0, const std::string& idle1,
+    const std::string& carry0, const std::string& carry1,
+    int r, int c, float cellSize)
+    : row(r), col(c), startRow(r), startCol(c), step(cellSize)
 {
+    if (!textures[0].loadFromFile(idle0))  std::cerr << "Error cargando " << idle0 << '\n';
+    if (!textures[1].loadFromFile(idle1))  std::cerr << "Error cargando " << idle1 << '\n';
+    if (!textures[2].loadFromFile(carry0)) std::cerr << "Error cargando " << carry0 << '\n';
+    if (!textures[3].loadFromFile(carry1)) std::cerr << "Error cargando " << carry1 << '\n';
+
     position = { col * step + step * 0.1f, row * step + step * 0.1f };
-    shape.setSize({ step * 0.8f, step * 0.8f });
-	originalColor = color;
-    shape.setFillColor(color);
-    shape.setPosition(position);
+
+    sprite.emplace(textures[0]);
+    sprite->setScale({ cellSize / textures[0].getSize().x,
+        cellSize / textures[0].getSize().y });
+    sprite->setPosition(position);
 }
 
-void Player::draw(sf::RenderWindow& window) const {
-    window.draw(shape);
-    // --- DESPUÉS ---
-    if (carrying_box) {
-        sf::CircleShape indicator(step * 0.2f);
-        // setOrigin con Vector2f
-        indicator.setOrigin({ indicator.getRadius(), indicator.getRadius() });
-        // setPosition con Vector2f
-        indicator.setPosition({ position.x + step * 0.4f,
-                                position.y + step * 0.4f });
-        window.draw(indicator);
+void Player::draw(sf::RenderWindow& window) {
+    updateAnimation();
+    if (sprite) window.draw(*sprite);
+}
+
+void Player::updateAnimation() {
+    if (animationClock.getElapsedTime().asSeconds() >= frameDuration) {
+        currentFrame = (currentFrame + 1) % 2;
+        std::size_t offset = carrying_box ? 2 : 0;
+        if (sprite) sprite->setTexture(textures[offset + currentFrame]);
+        animationClock.restart();
     }
-
 }
+
 
 bool Player::move(int dr, int dc, const Grid& grid) {
     int nr = row + dr, nc = col + dc;
@@ -42,7 +49,7 @@ bool Player::move(int dr, int dc, const Grid& grid) {
 
     bool wall =
         t == CellType::Wall ||
-        t == CellType::DoorClosed ||  // ya no saltará aquí si llevaba la caja
+        t == CellType::DoorClosed ||
         t == CellType::Box ||
         (t == CellType::Switch && grid.are_switches_active());
 
@@ -51,7 +58,7 @@ bool Player::move(int dr, int dc, const Grid& grid) {
 
     row = nr; col = nc;
     position = { col * step + step * 0.1f, row * step + step * 0.1f };
-    shape.setPosition(position);
+    if (sprite) sprite->setPosition(position);
     return true;
 }
 
@@ -64,7 +71,7 @@ bool Player::try_move_to(int r, int c, const Grid& grid) {
 void Player::set_position_grid(int r, int c) {
     row = r; col = c;
     position = { col * step + step * 0.1f, row * step + step * 0.1f };
-    shape.setPosition(position);
+    if (sprite) sprite->setPosition(position);
 }
 
 void Player::set_start_position(int r, int c) {
@@ -80,12 +87,14 @@ int Player::get_col() const { return col; }
 
 void Player::pick_box() {
     carrying_box = true;
-    shape.setFillColor(sf::Color::Green);
+    currentFrame = 0;
+    animationClock.restart();
 }
 
 void Player::drop_box() {
     carrying_box = false;
-    shape.setFillColor(originalColor);
+    currentFrame = 0;
+    animationClock.restart();
 }
 
 bool Player::is_carrying_box() const {
