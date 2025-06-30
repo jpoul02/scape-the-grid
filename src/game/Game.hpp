@@ -48,6 +48,11 @@ private:
         const sf::Vector2i& goal
     );
 
+    std::vector<sf::Vector2i> findPathWithoutPickup(
+            const sf::Vector2i & start,
+            const sf::Vector2i & goal
+             );
+
     std::mt19937 rng;
 
     void solveGame();

@@ -92,15 +92,24 @@ void Game::setup_level() {
 void Game::run() {
     while (window.isOpen()) {
         if (autoSolve && solveIndex < solution.size()) {
-            auto step = solution[solveIndex++];
-            if (step.x == -1 && step.y == -1) {
+            auto step = solution[solveIndex];
+            bool didMove = false;
+
+            if (step == sf::Vector2i{ -1,-1 }) {
+                // pickup
                 player.pick_box();
                 grid.set_cell(player.get_row(), player.get_col(), CellType::Empty);
+                didMove = true;
             }
-            else {
-                player.try_move_to(step.y, step.x, grid);
+            else if (player.try_move_to(step.y, step.x, grid)) {
+                didMove = true;
             }
-            next_turn();
+
+            if (didMove) {
+                ++solveIndex;      
+                next_turn();       
+                sf::sleep(sf::milliseconds(10));
+            }
         }
 
         processEvents();
@@ -108,6 +117,8 @@ void Game::run() {
         render();
     }
 }
+
+
 
 
 void Game::processEvents() {
@@ -164,25 +175,23 @@ void Game::update() {
     if (grid.get_cell(r, c) == CellType::Trap) {
         player.reset_to_start();
     }
-
-    grid.update_plates();
-
     if (grid.get_cell(r, c) == CellType::Goal && !showGoalMessage) {
         showGoalMessage = true;
     }
 }
 
+
 void Game::next_turn() {
     ++turnCounter;
     std::cout << "Turno: " << turnCounter << std::endl;
 
-    // Siempre alternamos los muros, tanto en manual como en automático:
+    grid.update_plates();
+
     if (turnCounter % SWITCH_WALL_INTERVAL == 0) {
         grid.toggle_switch_walls();
         std::cout << "→ Switch walls toggled\n";
     }
 
-    // Sólo movemos la meta si NO estamos auto-resolviendo
     if (!autoSolve && turnCounter % GOAL_MOVE_INTERVAL == 0) {
         grid.move_goal(rng);
         std::cout << "→ Goal moved\n";
@@ -258,35 +267,69 @@ std::vector<sf::Vector2i> Game::findFullPath(
     return {}; 
 }
 
+std::vector<sf::Vector2i> Game::findPathWithoutPickup(
+    const sf::Vector2i& start,
+    const sf::Vector2i& goal
+) {
+    std::queue<sf::Vector2i> q;
+    std::map<sf::Vector2i, sf::Vector2i, Vector2iCompare> prev;
+    q.push(start);
+    prev[start] = start;
+
+    int dr[4] = { 1,-1,0,0 }, dc[4] = { 0,0,1,-1 };
+    while (!q.empty()) {
+        auto cur = q.front(); q.pop();
+        if (cur == goal) break;
+
+        for (int i = 0; i < 4; ++i) {
+            sf::Vector2i nxt{ cur.x + dc[i], cur.y + dr[i] };
+            if (!grid.is_inside(nxt.y, nxt.x) || prev.count(nxt)) continue;
+
+            CellType t = grid.get_cell(nxt.y, nxt.x);
+            // Misma condición de “pasable” sin tener en cuenta pickup
+            bool pass =
+                t == CellType::Empty ||
+                t == CellType::Plate ||
+                t == CellType::PlateOn ||
+                t == CellType::Goal ||
+                t == CellType::DoorOpen ||
+                // Solo podemos abrir puertas si llevamos caja (pero aquí no llevamos nunca)
+                false ||
+                (t == CellType::Switch && !grid.are_switches_active());
+            if (!pass) continue;
+
+            prev[nxt] = cur;
+            q.push(nxt);
+        }
+    }
+
+    // Reconstruir
+    std::vector<sf::Vector2i> path;
+    if (!prev.count(goal)) return path;
+    for (auto at = goal; at != start; at = prev[at])
+        path.push_back(at);
+    std::reverse(path.begin(), path.end());
+    return path;
+}
+
 void Game::solveGame() {
+    solution.clear();
+    solveIndex = 0;
+
     sf::Vector2i start{ player.get_col(), player.get_row() };
     sf::Vector2i goal = grid.get_goal_pos();
 
-    auto direct = findFullPath(start, goal);
-    if (!direct.empty()) {
-        solution = direct;
+    // 2.1) Primero intento sin pickup
+    auto directNoBox = findPathWithoutPickup(start, goal);
+    if (!directNoBox.empty()) {
+        solution = std::move(directNoBox);
     }
     else {
-        sf::Vector2i boxPos{ -1,-1 };
-        for (int r = 0; r < grid.getRows(); ++r)
-            for (int c = 0; c < grid.getCols(); ++c)
-                if (grid.get_cell(r, c) == CellType::Box)
-                    boxPos = { c, r };
-
-        auto toBox = findFullPath(start, boxPos);
-
-        std::vector<sf::Vector2i> pickup{ {-1,-1} };
-
-        auto boxToGoal = findFullPath(boxPos, goal);
-
-        solution.clear();
-        solution.insert(solution.end(), toBox.begin(), toBox.end());
-        solution.insert(solution.end(), pickup.begin(), pickup.end());
-        solution.insert(solution.end(), boxToGoal.begin(), boxToGoal.end());
+        // 2.2) Si falla, hago la ruta completa con pickup
+        solution = findFullPath(start, goal);
     }
 
     autoSolve = true;
-    solveIndex = 0;
     std::cout << "Solver: hallados " << solution.size() << " pasos.\n";
 }
 
