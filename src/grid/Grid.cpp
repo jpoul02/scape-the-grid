@@ -126,3 +126,7 @@ void Grid::move_goal(std::mt19937& rng) {
     goal_pos = find_empty_cell(rng);
     set_cell(goal_pos.y, goal_pos.x, CellType::Goal);
 }
+
+sf::Vector2i Grid::get_goal_pos() const {
+    return goal_pos;
+}

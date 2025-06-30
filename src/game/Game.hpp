@@ -33,4 +33,20 @@ private:
     // --- Nivel y turnos ---
     void setup_level();
     void next_turn();
+
+    // Para el solver
+    std::vector<sf::Vector2i> solution;
+    size_t solveIndex = 0;
+    bool autoSolve = false;
+
+    // Botón Solver
+    sf::RectangleShape solveButton;
+    std::optional<sf::Text>          solveText;
+
+    std::vector<sf::Vector2i> findFullPath(
+        const sf::Vector2i& start,
+        const sf::Vector2i& goal
+    );
+
+    void solveGame();
 };
