@@ -48,5 +48,7 @@ private:
         const sf::Vector2i& goal
     );
 
+    std::mt19937 rng;
+
     void solveGame();
 };
