@@ -39,4 +39,7 @@
       <Filter>Archivos de encabezado</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <Font Include="..\..\..\..\Downloads\Open_Sans\OpenSans-VariableFont_wdth,wght.ttf" />
+  </ItemGroup>
 </Project>
