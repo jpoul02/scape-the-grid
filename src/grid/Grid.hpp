@@ -32,6 +32,9 @@ class Grid {
 public:
     Grid(int rows, int cols, float cellSize);
 
+    std::vector<std::pair<sf::Vector2i, sf::Vector2i>> getPlateDoorLinks() const;
+
+
     // Dibujo
     void draw(sf::RenderWindow& window, const std::map<CellType, sf::Texture>& textures);
 

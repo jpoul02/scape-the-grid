@@ -11,6 +11,9 @@
 #include <shellapi.h>
 #endif
 
+static const sf::Vector2i PICK = { -1, -1 };
+static const sf::Vector2i DROP = { -2, -2 };
+
 struct State {
     sf::Vector2i pos;
     bool carrying;
@@ -121,9 +124,17 @@ void Game::setup_level() {
     grid.set_cell(doorPos.y, doorPos.x, CellType::DoorClosed);
     grid.link_plate_to_door(platePos, doorPos);
 
-    for (int i = 0; i < 5; ++i) {
-        auto sw = grid.find_empty_cell(mt, playerPos);
-        grid.set_cell(sw.y, sw.x, CellType::Switch);
+    const int N = 5;  
+    for (int i = 0; i < N; ++i) {
+        auto boxPos = grid.find_empty_cell(mt);
+        auto platePos = grid.find_empty_cell(mt, boxPos);
+        auto doorPos = grid.find_empty_cell(mt, platePos);
+
+        grid.set_cell(boxPos.y, boxPos.x, CellType::Box);
+        grid.set_cell(platePos.y, platePos.x, CellType::Plate);
+        grid.set_cell(doorPos.y, doorPos.x, CellType::DoorClosed);
+
+        grid.link_plate_to_door(platePos, doorPos);
     }
 }
 
@@ -169,6 +180,16 @@ bool Game::loadMap(const std::string& path) {
     if (platePos.x >= 0 && doorPos.x >= 0)
         grid.link_plate_to_door(platePos, doorPos);
 
+    // Placa - Puerta
+    for (auto& link : j.value("links", nlohmann::json::array())) {
+        auto pp = link["plate"];
+        auto dp = link["door"];
+        sf::Vector2i platePos{ pp["r"], pp["c"] };
+        sf::Vector2i doorPos{ dp["r"], dp["c"] };
+        grid.link_plate_to_door(platePos, doorPos);
+    }
+
+
     // Posición inicial del jugador:
     auto s = j["start"];
     player.set_position_grid(s["r"], s["c"]);
@@ -182,24 +203,30 @@ void Game::run() {
     while (window.isOpen()) {
         if (autoSolve && solveIndex < solution.size()) {
             auto step = solution[solveIndex];
-            bool didMove = false;
+            bool did = false;
 
-            if (step == sf::Vector2i{ -1,-1 }) {
-                // pickup
+            if (step == PICK) {
                 player.pick_box();
                 grid.set_cell(player.get_row(), player.get_col(), CellType::Empty);
-                didMove = true;
+                did = true;
+            }
+            else if (step == DROP) {
+                player.drop_box();
+                grid.set_cell(player.get_row(), player.get_col(), CellType::Box);
+                did = true;
             }
             else if (player.try_move_to(step.y, step.x, grid)) {
-                didMove = true;
+                did = true;
             }
 
-            if (didMove) {
-                ++solveIndex;      
-                next_turn();       
+            if (did) {
+                ++solveIndex;
+                next_turn();
                 sf::sleep(sf::milliseconds(100));
             }
         }
+
+
 
         processEvents();
         update();
@@ -313,41 +340,45 @@ void Game::next_turn() {
 
     grid.update_plates();
 
-    if (turnCounter % SWITCH_WALL_INTERVAL == 0) {
-        grid.toggle_switch_walls();
-        std::cout << "→ Switch walls toggled\n";
-    }
-
     if (!autoSolve && turnCounter % GOAL_MOVE_INTERVAL == 0) {
         grid.move_goal(rng);
         std::cout << "→ Goal moved\n";
     }
 }
 
-
-
-
-
 std::vector<sf::Vector2i> Game::findFullPath(
     const sf::Vector2i& start,
     const sf::Vector2i& goal
 ) {
-    std::queue<State> q;
-    std::map<State, State>     prev;
-    std::map<State, sf::Vector2i> how;
+    // Marcadores
+    static const sf::Vector2i PICK = { -1, -1 };
+    static const sf::Vector2i DROP = { -2, -2 };
 
-    State s0{ start, false };
+    struct Node { sf::Vector2i pos; bool carrying; };
+    auto cmp = [](Node const& a, Node const& b) {
+        if (a.pos.x != b.pos.x) return a.pos.x < b.pos.x;
+        if (a.pos.y != b.pos.y) return a.pos.y < b.pos.y;
+        return a.carrying < b.carrying;
+        };
+
+    std::queue<Node> q;
+    std::map<Node, Node, decltype(cmp)> prev(cmp);
+    std::map<Node, sf::Vector2i, decltype(cmp)> how(cmp);
+
+    Node s0{ start, false };
     q.push(s0);
     prev[s0] = s0;
 
     int dr[4] = { 1,-1,0,0 }, dc[4] = { 0,0,1,-1 };
+
     while (!q.empty()) {
         auto [curPos, carry] = q.front(); q.pop();
-        if (curPos == goal) {
 
+        // 1) Si estoy en goal **sin** caja, reconstruyo y devuelvo
+        if (curPos == goal && !carry) {
             std::vector<sf::Vector2i> path;
-            State v{ curPos, carry };
-            while (!(v == s0)) {
+            Node v{ curPos, carry };
+            while (!(v.pos == start && v.carrying == false)) {
                 auto step = how[v];
                 path.push_back(step);
                 v = prev[v];
@@ -356,42 +387,56 @@ std::vector<sf::Vector2i> Game::findFullPath(
             return path;
         }
 
+        // 2) Pickup si hay caja aquí y no la llevo
         if (!carry && grid.get_cell(curPos.y, curPos.x) == CellType::Box) {
-            State nxt{ curPos, true };
+            Node nxt{ curPos,true };
             if (!prev.count(nxt)) {
-                prev[nxt] = { curPos, carry };
-                how[nxt] = { -1,-1 };  
+                prev[nxt] = { curPos,carry };
+                how[nxt] = PICK;
                 q.push(nxt);
             }
         }
 
+        // 3) Drop si llevo caja y estoy sobre placa
+        if (carry && grid.get_cell(curPos.y, curPos.x) == CellType::Plate) {
+            Node nxt{ curPos,false };
+            if (!prev.count(nxt)) {
+                prev[nxt] = { curPos,carry };
+                how[nxt] = DROP;
+                q.push(nxt);
+            }
+        }
+
+        // 4) Movimientos
         for (int i = 0; i < 4; ++i) {
             sf::Vector2i np{ curPos.x + dc[i], curPos.y + dr[i] };
             if (!grid.is_inside(np.y, np.x)) continue;
-
             CellType t = grid.get_cell(np.y, np.x);
+
             bool pass =
                 t == CellType::Empty ||
-                (t == CellType::Box && !carry) ||
+                t == CellType::Goal ||
                 t == CellType::Plate ||
                 t == CellType::PlateOn ||
-                t == CellType::Goal ||
                 t == CellType::DoorOpen ||
-                (t == CellType::DoorClosed && carry) ||
-                t == CellType::Switch;
+                (!carry && t == CellType::Box) ||
+                (carry && t == CellType::DoorClosed);
+
             if (!pass) continue;
 
-            State nxt{ np, carry };
+            Node nxt{ np, carry };
             if (!prev.count(nxt)) {
-                prev[nxt] = { curPos, carry };
+                prev[nxt] = { curPos,carry };
                 how[nxt] = np;
                 q.push(nxt);
             }
         }
     }
 
-    return {}; 
+    return {}; // sin solución
 }
+
+
 
 std::vector<sf::Vector2i> Game::findPathWithoutPickup(
     const sf::Vector2i& start,
@@ -418,10 +463,8 @@ std::vector<sf::Vector2i> Game::findPathWithoutPickup(
                 t == CellType::Plate ||
                 t == CellType::PlateOn ||
                 t == CellType::Goal ||
-                t == CellType::DoorOpen ||
-                // Solo podemos abrir puertas si llevamos caja (pero aquí no llevamos nunca)
-                false ||
-                (t == CellType::Switch && !grid.are_switches_active());
+                t == CellType::DoorOpen
+                ;
             if (!pass) continue;
 
             prev[nxt] = cur;
@@ -442,22 +485,77 @@ void Game::solveGame() {
     solution.clear();
     solveIndex = 0;
 
-    sf::Vector2i start{ player.get_col(), player.get_row() };
-    sf::Vector2i goal = grid.get_goal_pos();
+    sf::Vector2i S{ player.get_col(), player.get_row() };
+    sf::Vector2i G = grid.get_goal_pos();
 
-    // 2.1) Primero intento sin pickup
-    auto directNoBox = findPathWithoutPickup(start, goal);
-    if (!directNoBox.empty()) {
-        solution = std::move(directNoBox);
+    // 1) Ruta directa sin cajas
+    auto direct = findPathWithoutPickup(S, G);
+    if (!direct.empty()) {
+        solution = std::move(direct);
     }
     else {
-        // 2.2) Si falla, hago la ruta completa con pickup
-        solution = findFullPath(start, goal);
+        int bestLen = INT_MAX;
+        auto links = grid.getPlateDoorLinks();
+
+        // Recopilo todas las cajas del mapa
+        std::vector<sf::Vector2i> boxes;
+        for (int r = 0; r < grid.getRows(); ++r) {
+            for (int c = 0; c < grid.getCols(); ++c) {
+                if (grid.get_cell(r, c) == CellType::Box)
+                    boxes.emplace_back(c, r);
+            }
+        }
+
+        std::vector<sf::Vector2i> bestPlan;
+        // Para cada placa↔puerta y cada caja, pruebo plan caja→placa→meta
+        for (auto const& [plate, door] : links) {
+            for (auto const& boxPos : boxes) {
+                // (a) Ir de S a la caja sin recoger
+                auto p1 = findPathWithoutPickup(S, boxPos);
+                if (p1.empty()) continue;
+
+                // (b) Recoger y llevar caja hasta la placa
+                auto p2 = findFullPath(boxPos, plate);
+                if (p2.empty()) continue;
+
+                // (c) Simulo DROP sobre la placa para abrir la puerta
+                grid.set_cell(plate.y, plate.x, CellType::Box);
+                grid.update_plates();
+
+                // (d) Ahora busco ruta sin caja desde la placa hasta G
+                auto p3 = findPathWithoutPickup(plate, G);
+
+                // (e) Deshago la simulación para no alterar el estado real
+                grid.set_cell(plate.y, plate.x, CellType::Plate);
+                grid.update_plates();
+
+                if (p3.empty()) continue;
+
+                // Construyo la secuencia completa
+                std::vector<sf::Vector2i> cand;
+                cand.insert(cand.end(), p1.begin(), p1.end());
+                cand.emplace_back(PICK);
+                cand.insert(cand.end(), p2.begin(), p2.end());
+                cand.emplace_back(DROP);
+                cand.insert(cand.end(), p3.begin(), p3.end());
+
+                if ((int)cand.size() < bestLen) {
+                    bestLen = (int)cand.size();
+                    bestPlan = std::move(cand);
+                }
+            }
+        }
+
+        if (!bestPlan.empty())
+            solution = std::move(bestPlan);
     }
 
     autoSolve = true;
-    std::cout << "Solver: hallados " << solution.size() << " pasos.\n";
+    std::cout << "Solver: pasos = " << solution.size() << "\n";
 }
+
+
+
 
 
 void Game::render() {
@@ -524,6 +622,17 @@ bool Game::saveMap(const std::string& path) {
         }
     }
     j["cells"] = lines;
+
+    nlohmann::json links = nlohmann::json::array();
+    for (auto const& [pp, dp] : grid.getPlateDoorLinks()) {
+        links.push_back({
+        {"plate", {{"r", pp.y}, {"c", pp.x}}},
+        {"door" , {{"r", dp.y}, {"c", dp.x}}}
+         });
+        
+    }
+     j["links"] = std::move(links);
+
     // posición del player
     j["start"] = { {"r", player.get_row()}, {"c", player.get_col()} };
     j["goal"] = { {"r", grid.get_goal_pos().y}, {"c", grid.get_goal_pos().x} };
@@ -532,4 +641,48 @@ bool Game::saveMap(const std::string& path) {
     if (!o.is_open()) return false;
     o << j.dump(2);
     return true;
+}
+
+// en Game.cpp implementa:
+std::vector<sf::Vector2i> Game::findPathWithCarry(
+    const sf::Vector2i& start,
+    const sf::Vector2i& goal
+) {
+    std::queue<sf::Vector2i> q;
+    std::map<sf::Vector2i, sf::Vector2i, Vector2iCompare> prev;
+    q.push(start);
+    prev[start] = start;
+
+    int dr[4] = { 1,-1,0,0 }, dc[4] = { 0,0,1,-1 };
+    while (!q.empty()) {
+        auto cur = q.front(); q.pop();
+        if (cur == goal) break;
+
+        for (int i = 0; i < 4; ++i) {
+            sf::Vector2i nxt{ cur.x + dc[i], cur.y + dr[i] };
+            if (!grid.is_inside(nxt.y, nxt.x) || prev.count(nxt)) continue;
+
+            CellType t = grid.get_cell(nxt.y, nxt.x);
+            // con caja podemos:
+            bool pass =
+                t == CellType::Empty
+                || t == CellType::Plate
+                || t == CellType::PlateOn
+                || t == CellType::Goal
+                || t == CellType::DoorOpen
+                || t == CellType::DoorClosed;  // podemos abrirla
+            if (!pass) continue;
+
+            prev[nxt] = cur;
+            q.push(nxt);
+        }
+    }
+
+    // reconstruye
+    std::vector<sf::Vector2i> path;
+    if (!prev.count(goal)) return path;
+    for (auto at = goal; at != start; at = prev[at])
+        path.push_back(at);
+    std::reverse(path.begin(), path.end());
+    return path;
 }

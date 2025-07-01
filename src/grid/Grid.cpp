@@ -130,6 +130,14 @@ bool Grid::has_path(int sr, int sc, int tr, int tc) const {
     return false;
 }
 
+std::vector<std::pair<sf::Vector2i, sf::Vector2i>>
+Grid::getPlateDoorLinks() const {
+    std::vector<std::pair<sf::Vector2i, sf::Vector2i>> v;
+    for (auto const& [platePos, doorPos] : plate_door_links) {
+        v.emplace_back(platePos, doorPos);
+    }
+    return v;
+}
 
 sf::Vector2i Grid::find_empty_cell(std::mt19937& rng, sf::Vector2i exclude) {
     std::uniform_int_distribution<int> dr(1, rows - 2), dc(1, cols - 2);
@@ -147,11 +155,20 @@ void Grid::link_plate_to_door(const sf::Vector2i& pp, const sf::Vector2i& dp) {
 
 void Grid::update_plates() {
     for (auto& [pp, dp] : plate_door_links) {
-        bool active = (get_cell(pp.y, pp.x) == CellType::Box);
-        set_cell(pp.y, pp.x, active ? CellType::PlateOn : CellType::Plate);
-        set_cell(dp.y, dp.x, active ? CellType::DoorOpen : CellType::DoorClosed);
+        CellType under = get_cell(pp.y, pp.x);
+        bool active = (under == CellType::Box);
+        // Si hay caja, la dejamos ahí y abrimos la puerta
+        if (active) {
+            set_cell(dp.y, dp.x, CellType::DoorOpen);
+        }
+        // Si no hay caja, restauramos la placa y cerramos la puerta
+        else {
+            set_cell(pp.y, pp.x, CellType::Plate);
+            set_cell(dp.y, dp.x, CellType::DoorClosed);
+        }
     }
 }
+
 
 void Grid::toggle_switch_walls() {
     switch_walls_active = !switch_walls_active;

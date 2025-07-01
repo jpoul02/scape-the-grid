@@ -45,9 +45,13 @@ private:
     std::optional<sf::Text> goalText;
     bool                showGoalMessage = false;
 
+    std::vector<sf::Vector2i> findPathWithCarry(
+        const sf::Vector2i& start,
+        const sf::Vector2i& goal
+    );
+
     // --- Lógica de turnos ---
     int turnCounter = 0;
-    static const int SWITCH_WALL_INTERVAL = 5;
     static const int GOAL_MOVE_INTERVAL = 10;
 
     // --- Bucle principal ---
