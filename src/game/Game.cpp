@@ -3,6 +3,13 @@
 #include <iostream>
 #include <queue>
 #include <map>
+#include <optional>
+#include <filesystem>
+#include <SFML/Window/Event.hpp>
+#ifdef _WIN32
+#include <windows.h>
+#include <shellapi.h>
+#endif
 
 struct State {
     sf::Vector2i pos;
@@ -19,7 +26,7 @@ struct State {
 };
 
 
-Game::Game()
+Game::Game(const std::string& mapFile)
     : window()
     , grid(21, 21, 32.f)
     , player(
@@ -38,6 +45,12 @@ Game::Game()
         sf::State::Windowed
     );
     window.setFramerateLimit(60);
+
+#ifdef _WIN32
+    // SFML 3: getNativeHandle() devuelve HWND
+    HWND hwnd = static_cast<HWND>(window.getNativeHandle());
+    DragAcceptFiles(hwnd, TRUE);
+#endif
 
     if (!font.openFromFile("assets/OpenSans-Regular.ttf")) {
         std::cerr << "Error: No se pudo cargar la fuente 'assets/OpenSans-Regular.ttf'.\n";
@@ -60,15 +73,34 @@ Game::Game()
         });
     txt.setPosition({ w / 2.f, h / 2.f });
 
+    if (!mapFile.empty()) {
+        mapLoaded = loadMap(mapFile);
+        if (!mapLoaded)
+            std::cerr << "⚠️ No pude cargar mapa '" << mapFile << "'\n";
+    }
+
     setup_level();
 
     solveButton.setSize({ 100.f, 30.f });
     solveButton.setFillColor({ 50,50,50 });
     solveButton.setPosition(sf::Vector2f(10.f, 10.f));
 
+    exportButton.setSize({ 140.f, 30.f });
+    exportButton.setFillColor({ 50,50,100 });
+    exportButton.setPosition({ 120.f, 10.f });
+    exportText.emplace(font, "Exportar Mapa", 16u);
+    exportText->setFillColor(sf::Color::White);
+    exportText->setPosition({ 125.f, 12.f });
+
 }
 
 void Game::setup_level() {
+    if (mapLoaded) {
+        // Ya vino todo del JSON, solo inicializo placas/puertas:
+        grid.update_plates();
+        return;
+    }
+
     grid.generate_maze_dfs(1, 1);
     std::mt19937 mt{ std::random_device{}() };
 
@@ -94,6 +126,57 @@ void Game::setup_level() {
         grid.set_cell(sw.y, sw.x, CellType::Switch);
     }
 }
+
+bool Game::loadMap(const std::string& path) {
+    std::ifstream in{ path };
+    if (!in.is_open()) return false;
+    nlohmann::json j;
+    in >> j;
+    int rows = j["rows"], cols = j["cols"];
+    // Reconstruyo la cuadrícula:
+    grid = Grid(rows, cols, grid.getCellSize());
+    auto& lines = j["cells"];
+    for (int r = 0; r < rows; ++r) {
+        const std::string& line = lines[r];
+        for (int c = 0; c < cols; ++c) {
+            char ch = line[c];
+            CellType t = CellType::Empty;
+            switch (ch) {
+            case '#': t = CellType::Wall;    break;
+            case '.': t = CellType::Empty;   break;
+            case 'G':
+                t = CellType::Goal;
+                grid.set_goal_pos({ c,r });
+                break;
+            case 'B': t = CellType::Box;     break;
+            case 'P': t = CellType::Plate;   break;
+            case 'D': t = CellType::DoorClosed; break;
+            case 'S': t = CellType::Switch;  break;
+            default:  t = CellType::Empty;   break;
+            }
+            grid.set_cell(r, c, t);
+        }
+    }
+    // Vinculo placas con puerta (si hay exactamente 1 de cada)
+    // Busco coords:
+    sf::Vector2i platePos{ -1,-1 }, doorPos{ -1,-1 };
+    for (int r = 0; r < rows; ++r)
+        for (int c = 0; c < cols; ++c) {
+            auto t = grid.get_cell(r, c);
+            if (t == CellType::Plate)     platePos = { c,r };
+            if (t == CellType::DoorClosed) doorPos = { c,r };
+        }
+    if (platePos.x >= 0 && doorPos.x >= 0)
+        grid.link_plate_to_door(platePos, doorPos);
+
+    // Posición inicial del jugador:
+    auto s = j["start"];
+    player.set_position_grid(s["r"], s["c"]);
+    player.set_start_position(s["r"], s["c"]);
+
+    return true;
+}
+
 
 void Game::run() {
     while (window.isOpen()) {
@@ -126,24 +209,39 @@ void Game::run() {
 
 
 void Game::processEvents() {
-    std::optional<sf::Event> ev;
-    while ((ev = window.pollEvent())) {
+    // pollEvent() returns std::optional<sf::Event>
+    while (auto ev = window.pollEvent()) {
+        // close button
         if (ev->is<sf::Event::Closed>()) {
             window.close();
         }
+        // mouse clicks (left button)
         else if (ev->is<sf::Event::MouseButtonPressed>()) {
-            const auto* mb = ev->getIf<sf::Event::MouseButtonPressed>();
+            auto mb = ev->getIf<sf::Event::MouseButtonPressed>();
             if (mb->button == sf::Mouse::Button::Left) {
                 sf::Vector2f world = window.mapPixelToCoords({ mb->position.x, mb->position.y });
 
-                if (solveText && solveButton.getGlobalBounds().contains(world)) {
+                // “Resolver” button
+                if (solveButton.getGlobalBounds().contains(world)) {
                     solveGame();
                     continue;
                 }
+                // “Exportar Mapa” button
+                if (exportButton.getGlobalBounds().contains(world)) {
+                    if (saveMap("export.json")) {
+                        std::cout << "[SAVE] Mapa exportado a export.json\n";
+                        
+                    }
+                    else {
+                        std::cerr << "[SAVE] Error exportando mapa\n";
+                        
+                    }
+                    saveMap("export.json");
+                }
 
-                int c = static_cast<int>(world.x / grid.getCellSize());
-                int r = static_cast<int>(world.y / grid.getCellSize());
-
+                // regular grid clicks (move / pick up / drop)
+                int c = int(world.x / grid.getCellSize());
+                int r = int(world.y / grid.getCellSize());
                 if (!grid.is_inside(r, c)) continue;
 
                 if (player.try_move_to(r, c, grid)) {
@@ -171,6 +269,30 @@ void Game::processEvents() {
             }
         }
     }
+
+#ifdef _WIN32
+    // 2) Ahora procesa los archivos arrastrados en caliente
+    MSG msg;
+    HWND hwnd = static_cast<HWND>(window.getNativeHandle());
+    // Revisa todas las WM_DROPFILES pendientes
+    while (PeekMessage(&msg, hwnd, WM_DROPFILES, WM_DROPFILES, PM_REMOVE)) {
+        HDROP hDrop = reinterpret_cast<HDROP>(msg.wParam);
+        TCHAR filePath[MAX_PATH];
+        // Solo el primer archivo
+        if (DragQueryFile(hDrop, 0, filePath, MAX_PATH)) {
+            std::string path = std::filesystem::path(filePath).string();
+            if (path.ends_with(".json") && loadMap(path)) {
+                mapLoaded = true;
+                setup_level();  // reconstruye la cuadrícula
+                std::cout << "[LOAD] Mapa cargado: " << path << "\n";
+            }
+            else {
+                std::cerr << "[LOAD] Solo archivos .json permitidos (" << path << ")\n";
+            }
+        }
+        DragFinish(hDrop);
+    }
+#endif
 }
 
 
@@ -349,6 +471,9 @@ void Game::render() {
     if (solveText) {  
         window.draw(*solveText);  
     }
+    window.draw(exportButton);
+    if (exportText) window.draw(*exportText);
+
     window.display();
 }
 
@@ -368,8 +493,43 @@ void Game::load_textures() {
     load(CellType::Box, "assets/box.png");
     load(CellType::Trap, "assets/trap.png");
     load(CellType::Plate, "assets/plate.png");
-    load(CellType::PlateOn, "assets/plate_on.png");
+    //load(CellType::PlateOn, "assets/plate_on.png");
     load(CellType::DoorClosed, "assets/door_closed.png");
-    load(CellType::DoorOpen, "assets/door_open.png");
+    //load(CellType::DoorOpen, "assets/door_open.png");
     load(CellType::Switch, "assets/switch.png");
+}
+
+
+bool Game::saveMap(const std::string& path) {
+    nlohmann::json j;
+    int R = grid.getRows(), C = grid.getCols();
+    j["rows"] = R;
+    j["cols"] = C;
+    // serializar celdas como array de strings
+    std::vector<std::string> lines(R, std::string(C, '.'));
+    for (int r = 0; r < R; ++r) {
+        for (int c = 0; c < C; ++c) {
+            switch (grid.get_cell(r, c)) {
+            case CellType::Wall:         lines[r][c] = '#'; break;
+            case CellType::Empty:        lines[r][c] = '.'; break;
+            case CellType::Goal:         lines[r][c] = 'G'; break;
+            case CellType::Trap:         lines[r][c] = 'T'; break;
+            case CellType::Switch:       lines[r][c] = 'S'; break;
+            case CellType::Plate:        lines[r][c] = 'P'; break;
+            case CellType::PlateOn:      lines[r][c] = 'p'; break;
+            case CellType::DoorClosed:   lines[r][c] = 'D'; break;
+            case CellType::DoorOpen:     lines[r][c] = 'd'; break;
+            case CellType::Box:          lines[r][c] = 'B'; break;
+            }
+        }
+    }
+    j["cells"] = lines;
+    // posición del player
+    j["start"] = { {"r", player.get_row()}, {"c", player.get_col()} };
+    j["goal"] = { {"r", grid.get_goal_pos().y}, {"c", grid.get_goal_pos().x} };
+
+    std::ofstream o(path);
+    if (!o.is_open()) return false;
+    o << j.dump(2);
+    return true;
 }
